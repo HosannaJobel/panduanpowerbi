@@ -1,0 +1,422 @@
+<!doctype html>
+<html lang="id">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Pemodelan Dimensional: Fact Table, Dimension Table &amp; Star Schema di Power BI | Ruang Data</title>
+<meta name="description" content="Dasar pemodelan dimensional: business process, grain, fact table, dimension table, measure dan agregasi, lalu membangun star schema di Power Query dan Model view Power BI.">
+<link rel="stylesheet" href="assets/style.css">
+</head>
+<body>
+<header class="top">
+  <a class="brand" href="./">Ruang<span>Data</span></a>
+  <nav class="menu"><a href="./">Power BI Dasar</a><a class="on" href="pemodelan-dimensional.html">Pemodelan Dimensional</a></nav>
+  <input id="q" type="search" placeholder="Cari istilah, misal: grain, distinct, remove duplicates…">
+  <span id="info"></span>
+</header>
+
+<div class="wrap">
+<nav class="toc">
+  <h4>Konsep</h4>
+  <a href="#mengapa">Mengapa data dimodelkan</a>
+  <a href="#operasional">Operasional vs dimensional</a>
+  <a href="#bp">Business process</a>
+  <a href="#grain">Grain</a>
+  <a href="#fact">Fact table</a>
+  <a href="#dim">Dimension table</a>
+  <a href="#tentukan">Menentukan dimensi</a>
+  <h4>Contoh kasus klinik</h4>
+  <a href="#kasus">Flat table pelayanan</a>
+  <a href="#kasus-grain">Business process &amp; grain</a>
+  <a href="#kasus-tabel">Fact &amp; dimensi klinik</a>
+  <a href="#star">Star schema</a>
+  <a href="#jenis-kolom">Measure, key, atribut</a>
+  <a href="#agregasi">Pilihan agregasi</a>
+  <h4>Praktik Power BI</h4>
+  <a href="#import">Import Excel &amp; Reference</a>
+  <a href="#fact-pq">Fact_Pelayanan</a>
+  <a href="#jumlah">Kolom Jumlah_Layanan</a>
+  <a href="#dim-pq">Dim_Pasien, Dokter, Layanan</a>
+  <a href="#tanggal">Dim_Tanggal</a>
+  <a href="#load">Enable Load query sumber</a>
+  <a href="#model">Model view &amp; relationship</a>
+  <a href="#visual">Visual validasi</a>
+  <h4>Lainnya</h4>
+  <a href="#alur">Alur lengkap</a>
+  <a href="#kesalahan">Kesalahan yang sering terjadi</a>
+  <a href="#istilah">Daftar istilah</a>
+</nav>
+
+<main>
+<h1>Pemodelan Dimensional untuk Pemula: Fact Table, Dimension Table, dan Star Schema</h1>
+<p class="meta">Kategori: Data Modeling &middot; Power BI &middot; Diperbarui 14 November 2026</p>
+<p>Artikel ini membahas dasar pemodelan dimensional, mulai dari menentukan proses bisnis dan grain, memisahkan fakta dan dimensi, sampai membentuk star schema di Power Query dan Model view Power BI. Contoh yang dipakai adalah data pelayanan sebuah klinik.</p>
+
+<section id="mengapa">
+<h2>1. Mengapa data perlu dimodelkan</h2>
+<p>Organisasi membutuhkan informasi untuk menjawab berbagai pertanyaan analisis. Agar hasil analisis benar:</p>
+<ul>
+<li>Data harus memiliki <b>tingkat detail yang jelas</b> (grain).</li>
+<li>Setiap kolom perlu memiliki <b>fungsi yang dapat dipahami</b> (measure, key, atau atribut).</li>
+<li><b>Cara menghitung</b> (agregasi) harus sesuai dengan makna data.</li>
+</ul>
+<p>Pemodelan dimensional = menyusun data agar dapat dianalisis dengan benar: menentukan arti setiap baris, membagi data ke tabel yang tepat, lalu memilih cara menghitungnya.</p>
+</section>
+
+<section id="operasional">
+<h2>2. Model operasional vs model dimensional</h2>
+<table>
+<tr><th>Aspek</th><th>Model operasional</th><th>Model dimensional</th></tr>
+<tr><td>Tujuan</td><td>Mencatat kegiatan harian</td><td>Mendukung analisis</td></tr>
+<tr><td>Contoh</td><td>Mencatat layanan pada ID tertentu</td><td>Meringkas layanan per kategori</td></tr>
+<tr><td>Susunan</td><td>Mengikuti kebutuhan transaksi</td><td>Fakta dan konteks analisis</td></tr>
+<tr><td>Pertanyaan khas</td><td>Layanan apa yang dicatat?</td><td>Berapa layanan per bulan?</td></tr>
+</table>
+<p>Singkatnya: model operasional dipakai untuk <i>input/mencatat</i> transaksi (OLTP), model dimensional dipakai untuk <i>membaca/menganalisis</i> data (laporan, dashboard).</p>
+</section>
+
+<section id="bp">
+<h2>3. Business process (proses bisnis)</h2>
+<p><b>Proses bisnis</b> adalah serangkaian aktivitas yang saling berkaitan untuk menghasilkan produk atau layanan bagi pelanggan atau pihak yang membutuhkan. Proses bisnis menjelaskan kegiatan yang dilakukan organisasi untuk mencapai tujuan tertentu.</p>
+<ul>
+<li>Dalam pemodelan dimensional, proses bisnis <b>menentukan kegiatan yang akan dianalisis</b>.</li>
+<li>Satu organisasi dapat memiliki <b>beberapa proses bisnis</b> dengan kebutuhan analisis yang berbeda (mis. pendaftaran pasien, pelayanan, pembayaran).</li>
+<li>Menentukan proses bisnis adalah <b>langkah pertama</b> sebelum grain, dimensi, dan measure.</li>
+</ul>
+</section>
+
+<section id="grain">
+<h2>4. Grain</h2>
+<p><b>Grain</b> adalah pernyataan yang menjelaskan <b>apa yang direpresentasikan oleh satu baris</b> pada tabel fakta.</p>
+<ul>
+<li>Grain menetapkan <b>tingkat detail</b> data yang disimpan.</li>
+<li>Grain harus ditentukan <b>sebelum</b> memilih dimensi dan measure.</li>
+<li><b>Seluruh baris</b> dalam satu tabel fakta harus mengikuti grain yang sama (tidak boleh campur detail per layanan dengan total per kunjungan).</li>
+</ul>
+<p>Urutan desain: <b>business process &rarr; grain &rarr; dimensi &rarr; measure (fakta)</b>.</p>
+</section>
+
+<section id="fact">
+<h2>5. Fact table (tabel fakta)</h2>
+<ul>
+<li>Menyimpan <b>data kejadian</b> dari proses bisnis pada grain yang telah ditetapkan.</li>
+<li>Umumnya memuat <b>key dimensi</b> (foreign key) dan <b>measure</b> (nilai angka).</li>
+<li>Dapat juga menyimpan <b>identifier transaksi/kejadian</b> (mis. ID_Pelayanan, ID_Kunjungan).</li>
+<li>Nilai pada fact table menjadi dasar <b>perhitungan dan agregasi</b> analisis.</li>
+</ul>
+<p>Ciri fact table: jumlah barisnya banyak (bertambah setiap ada kejadian), kolomnya sempit (kebanyakan ID dan angka).</p>
+</section>
+
+<section id="dim">
+<h2>6. Dimension table (tabel dimensi)</h2>
+<ul>
+<li>Menyimpan <b>informasi deskriptif</b> yang menjelaskan kejadian pada tabel fakta.</li>
+<li>Menyediakan dasar untuk <b>mengelompokkan, menyaring (filter), dan memberi label</b> pada hasil analisis.</li>
+<li>Setiap anggota dimensi memiliki <b>key</b> yang membedakannya dari anggota lain.</li>
+<li>Dalam model sederhana, <b>satu key dimensi muncul satu kali</b> pada tabel dimensinya (karena itu dipakai Remove Duplicates).</li>
+</ul>
+<p>Ciri tabel dimensi: barisnya relatif sedikit, kolomnya berisi teks/atribut (nama, kategori, kota, bulan).</p>
+</section>
+
+<section id="tentukan">
+<h2>7. Menentukan dimensi</h2>
+<p>Dimensi dapat diidentifikasi melalui pertanyaan mengenai kejadian:</p>
+<table>
+<tr><th>Pertanyaan</th><th>Contoh pada kasus klinik</th></tr>
+<tr><td><b>Siapa</b> yang terlibat?</td><td>Pasien, Dokter</td></tr>
+<tr><td><b>Apa</b> objek atau jenis kegiatannya?</td><td>Layanan (Konsultasi Umum, Laboratorium Dasar)</td></tr>
+<tr><td><b>Kapan</b> kejadian berlangsung?</td><td>Tanggal kunjungan</td></tr>
+<tr><td><b>Di mana</b> kejadian atau pihak terkait berada?</td><td>Kota pasien</td></tr>
+<tr><td>Menurut <b>kelompok apa</b> hasil ingin dibandingkan?</td><td>Kategori layanan, spesialisasi dokter, kelompok usia, bulan/kuartal</td></tr>
+</table>
+</section>
+
+<section id="kasus">
+<h2>8. Contoh kasus: pelayanan klinik (flat table)</h2>
+<p>Data awal masih berupa satu tabel datar (flat table) bernama <b>Pelayanan</b>. Potongan isinya:</p>
+<table>
+<tr><th>Pelayanan</th><th>Kunjungan</th><th>Pasien</th><th>Dokter</th><th>Layanan</th></tr>
+<tr><td>PL001</td><td>KJ001</td><td>PS001</td><td>DK01</td><td>Konsultasi Umum</td></tr>
+<tr><td>PL002</td><td>KJ001</td><td>PS001</td><td>DK01</td><td>Laboratorium Dasar</td></tr>
+<tr><td>PL003</td><td>KJ002</td><td>PS001</td><td>DK01</td><td>Konsultasi Umum</td></tr>
+</table>
+<p>Perhatikan: satu kunjungan (KJ001) bisa berisi lebih dari satu pelayanan, dan satu pasien (PS001) bisa datang beberapa kali. Data pasien dan dokter berulang di banyak baris, sehingga perlu dipisah ke tabel dimensi.</p>
+</section>
+
+<section id="kasus-grain">
+<h2>9. Business process dan grain pada kasus klinik</h2>
+<h3>Business process</h3>
+<ul>
+<li>Kasus ini: <b>pemberian layanan kesehatan kepada pasien di klinik</b>.</li>
+<li>Kejadian yang dicatat adalah <b>pelaksanaan satu pelayanan</b>.</li>
+<li>Analisis mencakup jumlah pelayanan, durasi, dan biaya yang dikenakan.</li>
+<li>Alur: pasien datang &rarr; konsultasi &rarr; (bila perlu) laboratorium.</li>
+</ul>
+<h3>Grain</h3>
+<div class="note"><b>Satu baris = satu layanan yang diterima pasien dalam satu kunjungan.</b></div>
+<ul>
+<li>Setiap baris memiliki satu <b>ID_Pelayanan</b> yang unik.</li>
+<li>Dokter, tanggal, durasi, dan biaya harus sesuai kejadian pada baris itu.</li>
+<li>Grain bukan per kunjungan, karena satu kunjungan bisa berisi beberapa layanan (KJ001 punya PL001 dan PL002).</li>
+</ul>
+</section>
+
+<section id="kasus-tabel">
+<h2>10. Fact table dan dimension table klinik</h2>
+<h3>Fact_Pelayanan</h3>
+<ul>
+<li>Menyimpan kejadian sesuai grain.</li>
+<li><b>Dimension key</b> menunjukkan pasien, dokter, layanan, dan tanggal: ID_Pasien, ID_Dokter, ID_Layanan, Tanggal_Kunjungan.</li>
+<li><b>Measure</b> menyimpan jumlah, durasi, serta biaya: Jumlah_Layanan, Durasi_Layanan, Biaya_Layanan.</li>
+<li><b>ID_Pelayanan</b> dan <b>ID_Kunjungan</b> tetap menjadi identifier kejadian.</li>
+</ul>
+<h3>Tabel dimensi</h3>
+<table>
+<tr><th>Tabel</th><th>Key</th><th>Atribut</th><th>Menjelaskan</th></tr>
+<tr><td>Dim_Pasien</td><td>ID_Pasien</td><td>Nama_Pasien, Jenis_Kelamin, Kelompok_Usia, Kota</td><td>Pasien dan kotanya</td></tr>
+<tr><td>Dim_Dokter</td><td>ID_Dokter</td><td>Nama_Dokter, Spesialisasi</td><td>Pelaksana layanan</td></tr>
+<tr><td>Dim_Layanan</td><td>ID_Layanan</td><td>Nama_Layanan, Kategori_Layanan</td><td>Jenis layanan</td></tr>
+<tr><td>Dim_Tanggal</td><td>Tanggal</td><td>Nama_Hari, Nomor_Bulan, Nama_Bulan, Kuartal, Tahun</td><td>Konteks waktu (hari, bulan, kuartal, tahun)</td></tr>
+</table>
+</section>
+
+<section id="star">
+<h2>11. Star schema pelayanan klinik</h2>
+<p><b>Star schema</b>: satu tabel fakta di tengah, dikelilingi tabel dimensi yang masing-masing terhubung langsung ke fakta (bentuk seperti bintang). Relasinya <b>one-to-many</b>: dimensi di sisi 1, fakta di sisi banyak (*).</p>
+<div class="star">
+  <div class="t"><b>Dim_Dokter</b>ID_Dokter<br>Nama_Dokter, Spesialisasi</div>
+  <div class="l"><b>Dim_Pasien</b>ID_Pasien<br>Atribut pasien</div>
+  <div class="f"><b>Fact_Pelayanan</b>Key dimensi dan identifier<br>Jumlah, durasi, biaya</div>
+  <div class="r"><b>Dim_Layanan</b>ID_Layanan<br>Nama dan kategori</div>
+  <div class="b"><b>Dim_Tanggal</b>Tanggal<br>Hari, bulan, kuartal, tahun</div>
+</div>
+</section>
+
+<section id="jenis-kolom">
+<h2>12. Measure, key, dan atribut deskriptif</h2>
+<table>
+<tr><th>Jenis</th><th>Contoh kolom</th><th>Fungsi</th></tr>
+<tr><td>Measure</td><td>Biaya_Layanan</td><td>Nilai yang diagregasi</td></tr>
+<tr><td>Dimension key</td><td>ID_Dokter</td><td>Mengacu ke anggota dimensi</td></tr>
+<tr><td>Descriptive attribute</td><td>Spesialisasi</td><td>Mengelompokkan pelayanan</td></tr>
+<tr><td>Identifier kejadian</td><td>ID_Kunjungan</td><td>Menghitung kunjungan unik</td></tr>
+</table>
+</section>
+
+<section id="agregasi">
+<h2>13. Measure dan pilihan agregasi</h2>
+<table>
+<tr><th>Kolom</th><th>Agregasi</th><th>Makna hasil</th></tr>
+<tr><td>Jumlah_Layanan</td><td>Sum</td><td>Jumlah kejadian pelayanan</td></tr>
+<tr><td>Durasi_Layanan</td><td>Sum / Average</td><td>Total menit / rerata per pelayanan</td></tr>
+<tr><td>Biaya_Layanan</td><td>Sum / Average</td><td>Total biaya / rerata per pelayanan</td></tr>
+<tr><td>ID_Kunjungan</td><td>Distinct Count</td><td>Kunjungan unik</td></tr>
+<tr><td>ID_Pasien</td><td>Distinct Count</td><td>Pasien unik</td></tr>
+</table>
+<div class="note"><b>Count vs Distinct Count:</b> Count menghitung semua baris yang berisi nilai, sehingga ID yang berulang ikut terhitung berkali-kali. Distinct Count hanya menghitung nilai unik. Karena satu kunjungan bisa punya beberapa pelayanan dan satu pasien bisa datang berkali-kali, jumlah kunjungan dan jumlah pasien memakai <b>Distinct Count</b>. Di Power BI pilihan ini tertulis <b>Count (Distinct)</b>.</div>
+<p>Cara mengubah agregasi di visual: pada panel <b>Visualizations</b>, klik panah kecil (&#9662;) di samping nama field pada well (X-axis/Y-axis/Fields), lalu pilih Sum, Average, Count, atau Count (Distinct).</p>
+</section>
+
+<section id="import">
+<h2>14. Praktik: import Excel dan membuat query Reference</h2>
+<ol>
+<li><b>Home &rarr; Get Data &rarr; Excel Workbook</b>. Pilih berkas klinik, centang sheet <b>Pelayanan</b>, lalu klik <b>Transform Data</b>.</li>
+<li>Amati header, tipe data, dan jumlah baris di Power Query Editor.</li>
+<li>Jika sudah di-Load sebelumnya: buka tabel di panel Data, klik <b>Edit query</b> (atau Home &rarr; Transform data) untuk membuka Power Query Editor.</li>
+<li>Di panel <b>Queries</b> sebelah kiri, <b>klik kanan query Pelayanan &rarr; Reference</b>.</li>
+<li>Ubah nama query baru menjadi <b>Fact_Pelayanan</b> lewat klik kanan &rarr; <b>Rename</b> (atau ubah Name di Query Settings sebelah kanan).</li>
+<li>Dengan Fact_Pelayanan terpilih, buka tab <b>Home &rarr; Choose Columns</b> (grup <b>Manage Columns</b>).</li>
+</ol>
+<div class="note"><b>Reference vs Duplicate:</b> <i>Reference</i> membuat query baru yang mengambil hasil akhir query Pelayanan, sehingga perubahan pada Pelayanan ikut mengalir. <i>Duplicate</i> menyalin seluruh langkah menjadi query yang berdiri sendiri. Pada praktik ini semua tabel fakta dan dimensi dibuat dengan <b>Reference</b> dari Pelayanan.</div>
+</section>
+
+<section id="fact-pq">
+<h2>15. Struktur Fact_Pelayanan</h2>
+<p>Pada jendela Choose Columns, centang kolom berikut lalu klik <b>OK</b>:</p>
+<table>
+<tr><th>Kolom</th><th>Peran</th></tr>
+<tr><td>ID_Pelayanan</td><td>Identifier kejadian (unik per baris)</td></tr>
+<tr><td>ID_Kunjungan</td><td>Identifier kunjungan (untuk Distinct Count)</td></tr>
+<tr><td>Tanggal_Kunjungan</td><td>Key ke Dim_Tanggal</td></tr>
+<tr><td>ID_Pasien</td><td>Key ke Dim_Pasien</td></tr>
+<tr><td>ID_Dokter</td><td>Key ke Dim_Dokter</td></tr>
+<tr><td>ID_Layanan</td><td>Key ke Dim_Layanan</td></tr>
+<tr><td>Durasi_Layanan</td><td>Measure (menit)</td></tr>
+<tr><td>Biaya_Layanan</td><td>Measure (rupiah)</td></tr>
+<tr><td>Metode_Pembayaran</td><td>Atribut kejadian</td></tr>
+<tr><td>Status_Pelayanan</td><td>Atribut kejadian</td></tr>
+</table>
+<p>Atribut deskriptif seperti Nama_Pasien, Nama_Dokter, Spesialisasi, Nama_Layanan, dan Kategori_Layanan <b>tidak</b> dimasukkan ke fakta, karena tempatnya di tabel dimensi.</p>
+</section>
+
+<section id="jumlah">
+<h2>16. Menambahkan kolom Jumlah_Layanan</h2>
+<p>Tujuannya menyediakan nilai penghitung kejadian pelayanan.</p>
+<ol>
+<li><b>Add Column &rarr; Custom Column</b>.</li>
+<li>New column name: <b>Jumlah_Layanan</b>. Custom column formula: <code>= 1</code>. Klik <b>OK</b>.</li>
+<li>Ubah tipe kolom menjadi <b>Whole Number</b> (klik ikon ABC123 di header kolom &rarr; Whole Number, atau Transform &rarr; Data Type).</li>
+</ol>
+<p><b>Alasan:</b> satu baris mewakili satu pelayanan (sesuai grain), sehingga <b>Sum</b> dari nilai 1 sama dengan jumlah pelayanan.</p>
+</section>
+
+<section id="dim-pq">
+<h2>17. Membuat Dim_Pasien, Dim_Dokter, Dim_Layanan</h2>
+<p>Polanya sama untuk ketiga dimensi: <b>Reference</b> dari Pelayanan &rarr; Rename &rarr; <b>Choose Columns</b> &rarr; pilih kolom key &rarr; <b>Remove Duplicates</b>.</p>
+<table>
+<tr><th>Query</th><th>Kolom dipertahankan</th><th>Remove Duplicates pada</th><th>Tujuan</th></tr>
+<tr><td>Dim_Pasien</td><td>ID_Pasien, Nama_Pasien, Jenis_Kelamin, Kelompok_Usia, Kota</td><td>ID_Pasien</td><td>Satu baris untuk setiap pasien</td></tr>
+<tr><td>Dim_Dokter</td><td>ID_Dokter, Nama_Dokter, Spesialisasi</td><td>ID_Dokter</td><td>Satu baris untuk setiap dokter</td></tr>
+<tr><td>Dim_Layanan</td><td>ID_Layanan, Nama_Layanan, Kategori_Layanan</td><td>ID_Layanan</td><td>Satu baris untuk setiap jenis layanan</td></tr>
+</table>
+<p>Cara Remove Duplicates: klik header kolom key (mis. ID_Pasien) &rarr; <b>Home &rarr; Remove Rows &rarr; Remove Duplicates</b>, atau klik kanan header kolom &rarr; Remove Duplicates.</p>
+<ul>
+<li>Dim_Pasien: atribut pasien menjadi konteks analisis tanpa berulang pada setiap fakta.</li>
+<li>Dim_Dokter: dokter dapat menangani banyak pelayanan, tetapi satu dokter cukup satu baris dimensi.</li>
+<li>Dim_Layanan: jenis layanan dapat muncul pada banyak kunjungan dan menjadi kelompok analisis.</li>
+</ul>
+</section>
+
+<section id="tanggal">
+<h2>18. Dim_Tanggal</h2>
+<h3>Dasar Dim_Tanggal</h3>
+<ol>
+<li>Reference dari Pelayanan &rarr; rename <b>Dim_Tanggal</b>.</li>
+<li>Pertahankan hanya kolom <b>Tanggal_Kunjungan</b> (Choose Columns).</li>
+<li><b>Remove Duplicates</b>.</li>
+<li>Ubah nama kolom menjadi <b>Tanggal</b> (double klik header).</li>
+<li>Pastikan tipe data <b>Date</b>.</li>
+<li>Urutkan naik: panah header &rarr; <b>Sort Ascending</b>.</li>
+</ol>
+<p>Hasil: satu baris per tanggal yang muncul pada sumber. Kolom Tanggal menjadi key untuk konteks waktu pelayanan.</p>
+<h3>Atribut Dim_Tanggal</h3>
+<p>Pilih kolom <b>Tanggal</b>, lalu tambahkan lewat menu <b>Add Column &rarr; Date</b>:</p>
+<table>
+<tr><th>Kolom baru</th><th>Pilihan Add Column &rarr; Date</th></tr>
+<tr><td>Nama_Hari</td><td>Day &rarr; Name of Day</td></tr>
+<tr><td>Nomor_Bulan</td><td>Month &rarr; Month</td></tr>
+<tr><td>Nama_Bulan</td><td>Month &rarr; Name of Month</td></tr>
+<tr><td>Kuartal</td><td>Quarter &rarr; Quarter of Year</td></tr>
+<tr><td>Tahun</td><td>Year &rarr; Year</td></tr>
+</table>
+<div class="note">Selalu pilih kembali kolom <b>Tanggal</b> sebelum menambahkan atribut berikutnya. Kolom hasil (Day Name, Month, dst.) lalu di-rename sesuai tabel di atas.</div>
+<p>Tips: agar Nama_Bulan tidak terurut alfabet (April, August, ...), di Table view pilih kolom Nama_Bulan &rarr; <b>Column tools &rarr; Sort by column &rarr; Nomor_Bulan</b>.</p>
+</section>
+
+<section id="load">
+<h2>19. Query sumber: menonaktifkan Enable Load</h2>
+<p>Tujuannya menjaga query sumber tanpa memuatnya sebagai tabel analisis.</p>
+<ol>
+<li>Klik kanan query <b>Pelayanan</b> &rarr; hilangkan centang <b>Enable Load</b> (nama query jadi miring/italic).</li>
+<li>Pastikan kelima query hasil tetap aktif dimuat: Fact_Pelayanan, Dim_Pasien, Dim_Dokter, Dim_Layanan, Dim_Tanggal.</li>
+<li>Klik <b>Home &rarr; Close &amp; Apply</b>.</li>
+</ol>
+<p>Query Pelayanan tidak boleh dihapus karena kelima query lain mengambil data darinya (Reference).</p>
+</section>
+
+<section id="model">
+<h2>20. Model view dan relationship</h2>
+<p>Tujuannya mengenali susunan awal star schema.</p>
+<ol>
+<li>Buka <b>Model view</b> (ikon diagram di sisi kiri).</li>
+<li>Letakkan <b>Fact_Pelayanan di tengah</b> dan empat dimensi di sekelilingnya.</li>
+<li>Amati garis relationship yang mungkin dibuat otomatis (ID_Pasien, ID_Dokter, ID_Layanan biasanya terdeteksi karena nama kolomnya sama).</li>
+</ol>
+<h3>Melengkapi hubungan tanggal</h3>
+<ol>
+<li>Gulir daftar kolom Fact_Pelayanan sampai menemukan <b>Tanggal_Kunjungan</b>.</li>
+<li>Seret <b>Dim_Tanggal[Tanggal]</b> ke <b>Fact_Pelayanan[Tanggal_Kunjungan]</b>.</li>
+<li>Jika muncul jendela pengaturan: Cardinality <b>One to many (1:*)</b>, dengan <b>Dim_Tanggal pada sisi 1</b>; Cross-filter direction: <b>Single</b>.</li>
+<li>Pastikan <b>Make this relationship active</b> tercentang, lalu klik <b>OK</b>.</li>
+</ol>
+<p>Hubungan tanggal tidak terdeteksi otomatis karena nama kolomnya berbeda (Tanggal vs Tanggal_Kunjungan). Dengan arah Single, filter mengalir dari dimensi ke fakta.</p>
+<table>
+<tr><th>Relationship</th><th>Sisi 1</th><th>Sisi * (many)</th></tr>
+<tr><td>Pasien</td><td>Dim_Pasien[ID_Pasien]</td><td>Fact_Pelayanan[ID_Pasien]</td></tr>
+<tr><td>Dokter</td><td>Dim_Dokter[ID_Dokter]</td><td>Fact_Pelayanan[ID_Dokter]</td></tr>
+<tr><td>Layanan</td><td>Dim_Layanan[ID_Layanan]</td><td>Fact_Pelayanan[ID_Layanan]</td></tr>
+<tr><td>Tanggal</td><td>Dim_Tanggal[Tanggal]</td><td>Fact_Pelayanan[Tanggal_Kunjungan]</td></tr>
+</table>
+</section>
+
+<section id="visual">
+<h2>21. Visual untuk validasi model</h2>
+<p>Buat visual di <b>Report view</b> untuk memastikan relationship dan agregasi bekerja.</p>
+<table>
+<tr><th>Pertanyaan</th><th>Visual</th><th>Posisi field</th><th>Agregasi</th></tr>
+<tr><td>Perbandingan jumlah pelayanan berdasarkan kategori layanan</td><td>Clustered Column Chart</td><td>X: Dim_Layanan[Kategori_Layanan]<br>Y: Fact_Pelayanan[Jumlah_Layanan]</td><td>Sum</td></tr>
+<tr><td>Perkembangan jumlah pelayanan berdasarkan tanggal kunjungan (Juli&ndash;September 2026)</td><td>Line Chart</td><td>X: Dim_Tanggal[Tanggal]<br>Y: Fact_Pelayanan[Jumlah_Layanan]</td><td>Sum</td></tr>
+<tr><td>Perbandingan rata-rata durasi pelayanan (menit) berdasarkan spesialisasi dokter</td><td>Clustered Bar Chart</td><td>Y: Dim_Dokter[Spesialisasi]<br>X: Fact_Pelayanan[Durasi_Layanan]</td><td>Average</td></tr>
+<tr><td>Total jumlah kunjungan unik (Juli&ndash;September 2026)</td><td>Card</td><td>Fact_Pelayanan[ID_Kunjungan]</td><td>Distinct Count</td></tr>
+<tr><td>Total jumlah pasien unik yang menerima pelayanan (Juli&ndash;September 2026)</td><td>Card</td><td>Fact_Pelayanan[ID_Pasien]</td><td>Distinct Count</td></tr>
+</table>
+<ul>
+<li><b>Column chart</b> = batang tegak (kategori di sumbu X). <b>Bar chart</b> = batang mendatar (kategori di sumbu Y).</li>
+<li>Line chart memakai kolom <b>Tanggal dari Dim_Tanggal</b>, bukan Tanggal_Kunjungan dari fakta. Jika Power BI membuat hierarki Year/Quarter/Month/Day, klik panah field &rarr; pilih <b>Tanggal</b> (bukan Date Hierarchy) agar tampil per tanggal.</li>
+<li>Average durasi: klik panah field Durasi_Layanan &rarr; <b>Average</b> (default-nya Sum).</li>
+<li>Card kunjungan/pasien: klik panah field &rarr; <b>Count (Distinct)</b>.</li>
+</ul>
+</section>
+
+<section id="alur">
+<h2>22. Alur lengkap pemodelan dimensional</h2>
+<ol>
+<li><b>Menentukan kegiatan yang ingin dianalisis</b> (business process): pemberian layanan kepada pasien. Informasi yang dibutuhkan: jumlah pelayanan, biaya, durasi, serta analisis menurut dokter, kategori layanan, atau waktu.</li>
+<li><b>Menentukan arti satu baris data (grain)</b>: satu baris = satu layanan yang diterima pasien dalam satu kunjungan.</li>
+<li><b>Memisahkan kejadian dan konteksnya</b>: fakta vs dimensi.</li>
+<li><b>Membentuk rancangan melalui Power Query</b>: Reference, Choose Columns, Custom Column, Remove Duplicates, atribut tanggal, Enable Load.</li>
+<li><b>Memastikan hasil analisis sesuai makna data</b>: relationship di Model view dan visual validasi dengan agregasi yang tepat.</li>
+</ol>
+<table>
+<tr><th>Tabel</th><th>Apa yang disimpan?</th><th>Pertanyaan yang dijawab</th></tr>
+<tr><td>Fact_Pelayanan</td><td>Kejadian pelayanan, jumlah, durasi, biaya, dan key</td><td>Berapa pelayanan dan total biayanya?</td></tr>
+<tr><td>Dim_Pasien</td><td>Atribut pasien</td><td>Pelayanan diberikan kepada kelompok usia atau kota mana?</td></tr>
+<tr><td>Dim_Dokter</td><td>Atribut dokter dan spesialisasi</td><td>Pelayanan ditangani oleh siapa?</td></tr>
+<tr><td>Dim_Layanan</td><td>Nama dan kategori layanan</td><td>Jenis pelayanan apa yang diberikan?</td></tr>
+<tr><td>Dim_Tanggal</td><td>Tanggal dan atribut kalender</td><td>Kapan pelayanan berlangsung?</td></tr>
+</table>
+</section>
+
+<section id="kesalahan">
+<h2>23. Kesalahan yang sering terjadi</h2>
+<table>
+<tr><th>Masalah</th><th>Penyebab</th><th>Perbaikan</th></tr>
+<tr><td>Jumlah kunjungan terlalu besar</td><td>Memakai Count pada ID_Kunjungan</td><td>Ganti ke Count (Distinct)</td></tr>
+<tr><td>Durasi per spesialisasi sangat besar</td><td>Agregasi masih Sum</td><td>Ganti ke Average</td></tr>
+<tr><td>Relationship many-to-many / error saat relasi</td><td>Key di dimensi masih duplikat</td><td>Remove Duplicates pada kolom key dimensi</td></tr>
+<tr><td>Line chart tidak terfilter / angka sama semua</td><td>Relationship tanggal belum dibuat atau tidak aktif</td><td>Seret Dim_Tanggal[Tanggal] ke Fact_Pelayanan[Tanggal_Kunjungan], 1:*, Single, active</td></tr>
+<tr><td>Tabel Pelayanan ikut muncul di model</td><td>Enable Load masih aktif</td><td>Klik kanan Pelayanan &rarr; matikan Enable Load</td></tr>
+<tr><td>Atribut tanggal salah / error</td><td>Kolom yang terpilih bukan Tanggal saat Add Column &rarr; Date</td><td>Pilih ulang kolom Tanggal sebelum tiap atribut</td></tr>
+<tr><td>Jumlah_Layanan tidak bisa di-Sum</td><td>Tipe kolom masih Any/Text</td><td>Ubah tipe ke Whole Number</td></tr>
+</table>
+</section>
+
+<section id="istilah">
+<h2>24. Daftar istilah</h2>
+<table>
+<tr><th>Istilah</th><th>Arti</th></tr>
+<tr><td>Business process</td><td>Kegiatan bisnis yang akan dianalisis</td></tr>
+<tr><td>Grain</td><td>Arti / tingkat detail satu baris tabel fakta</td></tr>
+<tr><td>Fact table</td><td>Tabel kejadian berisi key dimensi, identifier, dan measure</td></tr>
+<tr><td>Dimension table</td><td>Tabel konteks deskriptif untuk mengelompokkan dan menyaring fakta</td></tr>
+<tr><td>Measure</td><td>Kolom angka yang diagregasi (jumlah, durasi, biaya)</td></tr>
+<tr><td>Dimension key</td><td>Kolom di fakta yang mengacu ke anggota dimensi (ID_Dokter, dll.)</td></tr>
+<tr><td>Descriptive attribute</td><td>Kolom deskriptif di dimensi (Spesialisasi, Kota, Kategori)</td></tr>
+<tr><td>Identifier kejadian</td><td>ID transaksi/kejadian (ID_Pelayanan, ID_Kunjungan)</td></tr>
+<tr><td>Star schema</td><td>Satu fakta di tengah dikelilingi dimensi yang terhubung langsung</td></tr>
+<tr><td>Flat table</td><td>Tabel datar tunggal berisi semua kolom (sebelum dimodelkan)</td></tr>
+<tr><td>Reference</td><td>Query baru yang mengambil hasil query lain</td></tr>
+<tr><td>Remove Duplicates</td><td>Menghapus baris dengan nilai kolom terpilih yang sama</td></tr>
+<tr><td>Enable Load</td><td>Pengaturan apakah query dimuat ke model</td></tr>
+<tr><td>One to many (1:*)</td><td>Satu baris dimensi berpasangan dengan banyak baris fakta</td></tr>
+<tr><td>Cross-filter direction Single</td><td>Filter mengalir satu arah, dari dimensi ke fakta</td></tr>
+<tr><td>Distinct Count</td><td>Menghitung nilai unik</td></tr>
+</table>
+<footer>&copy; 2026 Ruang Data &middot; Tutorial Power BI &amp; pemodelan data. Baca juga: <a href="./">Power BI Dasar: Power Query, Append &amp; Merge, Dashboard</a>.</footer>
+</section>
+</main>
+</div>
+
+<script src="assets/cari.js"></script>
+</body>
+</html>
